@@ -1,11 +1,8 @@
 #!/usr/bin/env python
-import math
-import random
 from collections import namedtuple
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation, writers
 
 
 # time within which agent should reach his preferred speed
@@ -106,7 +103,7 @@ class Pedestrian:
     def calc_repulsive_force(self, walls):
         force = np.zeros(self.v.shape)
         for wall in walls:
-            wall_dist, wall_norm_vec = wall.calc_dist_and_norm_vec(self.pos)
+            wall_dist, wall_norm_vec = wall.calc_dist_and_norm_vec(Point(*self.pos))
             if wall_dist - self.r < self.safe_dist:
                 numerator = (self.safe_dist + self.r - wall_dist)
                 denominator = (wall_dist - self.r)**STEEPNESS
@@ -202,18 +199,7 @@ class Pedestrian:
         return np.linalg.norm(self.goal - self.pos) < 0.001
 
 
-# Create random pedetrians
-ped1 = Pedestrian(np.array([0.0, 0.0]), np.array([20.0, 20.0]), np.array([0.0, 0.0]), max_speed=10)
-ped2 = Pedestrian(np.array([25.0, 0.0]), np.array([0.0, 20.0]), np.array([0.0, 0.0]))
-# ped2 = Pedestrian(np.array([19.0, 19.0]), np.array([0.0, 0.0]), np.array([0.0, 0.0]))
-
-pedestrians = [ped1, ped2]
-
-for p in pedestrians:
-    print("Pedestrian: s {},{} e {},{} v {}".format(p.pos[0], p.pos[1], p.goal[0], p.goal[1], p.v))
-
-
-def run_simulation():
+def run_simulation(pedestrians, walls, dt):
     # move pedestrains
     t = 0
     history = []
@@ -221,38 +207,51 @@ def run_simulation():
         xs = []
         ys = []
         for p in pedestrians:
-            p.calc_v_des([], pedestrians, 0.1)
+            p.calc_v_des(walls, pedestrians, dt)
         for p in pedestrians:
-            p.move(0.1)
+            p.move(dt)
             xs.append(p.pos[0])
             ys.append(p.pos[1])
         # for i, p in enumerate(pedestrians):
         #     print(i, p.pos)
 
         history.append((xs, ys))
-        t+=1
-
-    # animated giph
-    fig, ax = plt.subplots(figsize=(16,14))
-    pedestrian_colors = np.random.rand(len(pedestrians))
-
-    ax.set_xlim(xmin=0, xmax=1)
-    ax.set_ylim(ymin=0, ymax=1)
-
-    def update(frame):
-        xs, ys = frame
-        ax.clear()
-        ax.scatter(xs, ys, c=pedestrian_colors)
-
-    ani = FuncAnimation(fig, update, frames=history, interval=20, repeat=False)
-    ani.save(f'ani2.mp4', writer=writers['ffmpeg'](fps=15, metadata=dict(artist='Me'), bitrate=1800))
-    plt.show()
+        t += 1
 
     # static plot
+    for wall in walls:
+        xs = [wall.p1.x, wall.p2.x]
+        ys = [wall.p1.y, wall.p2.y]
+        plt.plot(xs, ys)
+
     for i in range(len(pedestrians)):
         xs = [epoch[0][i] for epoch in history]
         ys = [epoch[1][i] for epoch in history]
         plt.plot(xs, ys)
     plt.show()
 
-run_simulation()
+
+def wall_test():
+    pedestrians = [
+        Pedestrian(start=np.array([10.0, 0.0]), goal=np.array([28.0, 20.0]),
+                   v_init=np.array([0.0, 0.0]))
+    ]
+
+    walls = [
+        Wall(Point(0, 10), Point(20, 10))
+    ]
+
+    run_simulation(pedestrians, walls, 0.1)
+
+
+def pedestrians_test():
+    pedestrians = [
+        Pedestrian(np.array([0.0, 0.0]), np.array([20.0, 20.0]), np.array([0.0, 0.0]), max_speed=10),
+        Pedestrian(np.array([25.0, 0.0]), np.array([0.0, 20.0]), np.array([0.0, 0.0]))
+    ]
+
+    run_simulation(pedestrians, [], 0.1)
+
+
+# wall_test()
+pedestrians_test()
