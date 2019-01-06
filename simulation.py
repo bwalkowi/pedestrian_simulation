@@ -69,7 +69,9 @@ class Pedestrian:
     def __init__(self, start, goal, *, v_init=None, r=2,
                  pref_speed=3, max_speed=5, safe_dist=2,
                  psychological_dist=2, anticipation_time=1,
-                 pedestrians_to_avoid=3):
+                 pedestrians_to_avoid=3,
+                 avoidance_min=1, avoidance_mid=5,
+                 avoidance_max=8, avoidance_magnitude=1):
         """Creates pedestrian agent.
 
         :param start: pedestrian initial position
@@ -90,6 +92,12 @@ class Pedestrian:
         self.v = v_init or np.array([0.0, 0.0])
         self.pref_speed = pref_speed
         self.max_speed = max_speed
+
+        # needed to calculate avoidance force magnitude
+        self.d_min = avoidance_min
+        self.d_mid = avoidance_mid
+        self.d_max = avoidance_max
+        self.avoidance_magnitude = avoidance_magnitude
 
         # needed to calculate repulsive force
         self.safe_dist = safe_dist
@@ -168,6 +176,7 @@ class Pedestrian:
             collision_time = self._check_collision(v_des, pedestrian)
             if collision_time is not None:
                 colliding_pedestrians.append((collision_time, pedestrian))
+        sorted(colliding_pedestrians, key=lambda t: t[0])
         return colliding_pedestrians
 
     def _calc_avoidance_force(self, v_des, other, collision_time):
@@ -180,7 +189,17 @@ class Pedestrian:
         dist = np.linalg.norm(c_i - self.pos) + np.linalg.norm(c_i - c_j) - self.r - other.r
 
         # TODO take into account d_min, d_mid and d_max mentioned in paper
-        return unit_vec / dist
+        return unit_vec * self._avoidance_force_magnitude(dist)
+
+    def _avoidance_force_magnitude(self, d):
+        if d < self.d_min:
+            return 1/(self.d_min-d) * self.avoidance_magnitude
+        elif d < self.d_mid:
+            return self.avoidance_magnitude
+        elif d < self.d_max:
+            return (1/(self.d_mid - self.d_max) * d - self.d_max / (self.d_mid - self.d_max)) * self.avoidance_magnitude
+        else:
+            return 0
 
     def _check_collision(self, v_des, pedestrian):
         if pedestrian is self:
