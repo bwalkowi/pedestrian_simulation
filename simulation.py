@@ -141,12 +141,23 @@ class Pedestrian:
         v_des = self.v + (goal_force + repulsive_force) * dt
         v_des = self._limit_velocity(v_des)
 
-        # return self._calc_evasive_force_1(v_des, pedestrians)
-        return self._calc_evasive_force_2(v_des, pedestrians, dt)
+        return self._calc_evasive_force_1(v_des, pedestrians)
+        #return self._calc_evasive_force_2(v_des, pedestrians, dt)
 
     def _calc_evasive_force_1(self, v_des, pedestrians):
-        # TODO implement
-        pass
+        force = np.zeros(self.v.shape)
+        num = 0
+
+        colliding_pedestrians = self._get_colliding_pedestrians(v_des,
+                                                                pedestrians)
+        avoidance_force = np.zeros(self.v.shape)
+        for (collision_time, fst) in colliding_pedestrians:
+            num += 1
+            avoidance_force = self._calc_avoidance_force(v_des, fst, collision_time)
+            force += avoidance_force / 2**num
+        force += avoidance_force / 2**num
+
+        return force
 
     def _calc_evasive_force_2(self, v_des, pedestrians, dt):
         force = np.zeros(self.v.shape)
@@ -177,7 +188,7 @@ class Pedestrian:
             if collision_time is not None:
                 colliding_pedestrians.append((collision_time, pedestrian))
         sorted(colliding_pedestrians, key=lambda t: t[0])
-        return colliding_pedestrians
+        return colliding_pedestrians[:self.pedestrians_to_avoid]
 
     def _calc_avoidance_force(self, v_des, other, collision_time):
         c_i = self.pos + collision_time * v_des
@@ -188,7 +199,6 @@ class Pedestrian:
 
         dist = np.linalg.norm(c_i - self.pos) + np.linalg.norm(c_i - c_j) - self.r - other.r
 
-        # TODO take into account d_min, d_mid and d_max mentioned in paper
         return unit_vec * self._avoidance_force_magnitude(dist)
 
     def _avoidance_force_magnitude(self, d):
