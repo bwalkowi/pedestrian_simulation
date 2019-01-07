@@ -89,7 +89,7 @@ class Pedestrian:
         self.goal = goal
         self.r = r
 
-        self.v = v_init or np.array([0.0, 0.0])
+        self.v = v_init if v_init is not None else np.array([0.0, 0.0])
         self.pref_speed = pref_speed
         self.max_speed = max_speed
 
@@ -187,7 +187,7 @@ class Pedestrian:
             collision_time = self._check_collision(v_des, pedestrian)
             if collision_time is not None:
                 colliding_pedestrians.append((collision_time, pedestrian))
-        sorted(colliding_pedestrians, key=lambda t: t[0])
+        colliding_pedestrians.sort(key=lambda t: t[0])
         return colliding_pedestrians[:self.pedestrians_to_avoid]
 
     def _calc_avoidance_force(self, v_des, other, collision_time):
@@ -290,8 +290,7 @@ def run_simulation(pedestrians, walls, dt):
 
 def wall_test():
     pedestrians = [
-        Pedestrian(start=np.array([10.0, 0.0]), goal=np.array([28.0, 20.0]),
-                   v_init=np.array([0.0, 0.0]))
+        Pedestrian(start=np.array([10.0, 0.0]), goal=np.array([28.0, 20.0]))
     ]
 
     walls = [
@@ -310,5 +309,5 @@ def pedestrians_test():
     run_simulation(pedestrians, [], 0.1)
 
 
-# wall_test()
+wall_test()
 pedestrians_test()
