@@ -291,12 +291,18 @@ def run_simulation(pedestrians, walls, dt):
     plt.show()
 
 class LiveSimulation(object):
-    def __init__(self, pedestrians, walls, dt=0.1, max_t=10, ylim=(-1, 30), xlim=(-1, 30)):
+    def __init__(self, pedestrians, walls,
+            dt=0.1, max_t=10,
+            ylim=(-1, 30), xlim=(-1, 30),
+            psychological_dist_vis=True, path_vis=True):
         self.pedestrians = pedestrians
         self.walls = walls
         self.dt = dt
         self.max_t = max_t
         self.t = 0
+
+        self.psychological_dist_vis = psychological_dist_vis
+        self.path_vis = path_vis
 
         # Plot
         self.fig = plt.figure()
@@ -304,6 +310,7 @@ class LiveSimulation(object):
         self.ax = self.fig.add_subplot(111, xlim=xlim, ylim=ylim)
         self.pedestrian_data, = self.ax.plot([], [], 'bo', ms=6)
         self.wall_data, = self.ax.plot([], [], 'k-')
+        self.dynamic_patches = []
 
     def step(self):
         forces = []
@@ -319,9 +326,30 @@ class LiveSimulation(object):
                 [p.pos[0] for p in self.pedestrians],
                 [p.pos[1] for p in self.pedestrians]
             )
-        return self.pedestrian_data
+
+        self.dynamic_patches = []
+        if self.path_vis:
+            for i, p in enumerate(self.pedestrians):
+                self.pedestrian_path_data[i]["codes"].append(Path.LINETO)
+                self.pedestrian_path_data[i]["vertices"].append(p.pos[:])
+                patch = mpatches.PathPatch(
+                         Path(
+                            np.array(self.pedestrian_path_data[i]["vertices"]),
+                            self.pedestrian_path_data[i]["codes"]
+                         ), color='k'
+                        )
+                self.ax.add_patch(patch)
+                self.dynamic_patches.append(patch)
+
+        return self.pedestrian_data, self.dynamic_patches
 
     def run(self):
+        if self.psychological_dist_vis:
+            for p in self.pedestrians:
+                c = mpatches.Circle(p.pos, radius=p.psychological_dist, edgecolor='r', fill=False)
+                self.ax.add_patch(c)
+                self.dynamic_patches.append(c)
+
         # Draw walls
         for wall in self.walls:
             path_data = [
@@ -332,6 +360,11 @@ class LiveSimulation(object):
             path = Path(vert, cod)
             patch = mpatches.PathPatch(path)
             self.ax.add_patch(patch)
+        self.pedestrian_path_data = []
+        for p in self.pedestrians:
+            self.pedestrian_path_data.append({"codes": [Path.MOVETO], "vertices": [p.pos]})
+
+
         anim = FuncAnimation(self.fig, self.animate, interval=100, frames=int(self.max_t//self.dt))
         plt.draw()
         plt.show()
@@ -400,7 +433,7 @@ def crossing_test(size=20, passage_width=5):
 
     run_simulation(pedestrians, walls, 0.1)
 
-wall_test()
+#wall_test()
 pedestrians_test()
 hallway_test()
 crossing_test()
