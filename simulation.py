@@ -3,6 +3,9 @@ from collections import namedtuple
 
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.path import Path
+import matplotlib.patches as mpatches
 
 
 # time within which pedestrian should reach his preferred speed
@@ -287,6 +290,52 @@ def run_simulation(pedestrians, walls, dt):
         plt.plot(xs, ys)
     plt.show()
 
+class LiveSimulation(object):
+    def __init__(self, pedestrians, walls, dt=0.1, max_t=10, ylim=(-1, 30), xlim=(-1, 30)):
+        self.pedestrians = pedestrians
+        self.walls = walls
+        self.dt = dt
+        self.max_t = max_t
+        self.t = 0
+
+        # Plot
+        self.fig = plt.figure()
+        self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        self.ax = self.fig.add_subplot(111, xlim=xlim, ylim=ylim)
+        self.pedestrian_data, = self.ax.plot([], [], 'bo', ms=6)
+        self.wall_data, = self.ax.plot([], [], 'k-')
+
+    def step(self):
+        forces = []
+        for p in self.pedestrians:
+            forces.append(p.calc_force(self.walls, self.pedestrians, self.dt))
+        for p, force in zip(self.pedestrians, forces):
+            p.move(force, self.dt)
+        self.t += self.dt
+
+    def animate(self, i):
+        self.step()
+        self.pedestrian_data.set_data(
+                [p.pos[0] for p in self.pedestrians],
+                [p.pos[1] for p in self.pedestrians]
+            )
+        return self.pedestrian_data
+
+    def run(self):
+        # Draw walls
+        for wall in self.walls:
+            path_data = [
+                    (Path.MOVETO, wall.p1),
+                    (Path.LINETO, wall.p2)
+                    ]
+            cod, vert = zip(*path_data)
+            path = Path(vert, cod)
+            patch = mpatches.PathPatch(path)
+            self.ax.add_patch(patch)
+        anim = FuncAnimation(self.fig, self.animate, interval=100, frames=int(self.max_t//self.dt))
+        plt.draw()
+        plt.show()
+
 
 def wall_test():
     pedestrians = [
@@ -306,7 +355,9 @@ def pedestrians_test():
         Pedestrian(np.array([25.0, 0.0]), np.array([0.0, 20.0]))
     ]
 
-    run_simulation(pedestrians, [], 0.1)
+    #run_simulation(pedestrians, [], 0.1)
+    sim = LiveSimulation(pedestrians, [], 0.1)
+    sim.run()
 
 def hallway_test():
     pedestrians = [
@@ -320,6 +371,8 @@ def hallway_test():
         Wall(Point(0, 10), Point(25, 10))
     ]
 
+    sim = LiveSimulation(pedestrians, walls, 0.1)
+    sim.run()
     run_simulation(pedestrians, walls, 0.1)
 
 def crossing_test(size=20, passage_width=5):
