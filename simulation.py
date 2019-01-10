@@ -252,7 +252,7 @@ class Pedestrian:
             return velocity
 
     def has_arrived(self):
-        return np.linalg.norm(self.goal - self.pos) < 0.01
+        return np.linalg.norm(self.goal - self.pos) < 0.1
 
 
 def run_simulation(pedestrians, walls, dt):
@@ -308,6 +308,46 @@ def pedestrians_test():
 
     run_simulation(pedestrians, [], 0.1)
 
+def hallway_test():
+    pedestrians = [
+        Pedestrian(np.array([0.0, 5.0]), np.array([25.0, 5.0]), max_speed=10),
+        Pedestrian(np.array([25.0, 6.0]), np.array([0.0, 4.0])),
+        Pedestrian(np.array([25.0, 4.0]), np.array([0.0, 8.0]))
+    ]
+
+    walls = [
+        Wall(Point(0, 0), Point(25, 0)),
+        Wall(Point(0, 10), Point(25, 10))
+    ]
+
+    run_simulation(pedestrians, walls, 0.1)
+
+def crossing_test(size=20, passage_width=5):
+
+    ws = (size-passage_width)/2 # wall size
+    e = 0.00001 # Fix for ZeroDivisionError
+    walls= [
+        # Bottom left corner
+        Wall(Point(0, ws), Point(ws, ws)),
+        Wall(Point(ws, 0), Point(ws-e, ws)),
+        # Bottom right corner
+        Wall(Point(size - ws, ws), Point(size, ws)),
+        Wall(Point(size - ws, 0), Point(size-ws-e, ws)),
+        # Top left corner
+        Wall(Point(0, size-ws), Point(ws, size-ws)),
+        Wall(Point(ws, size), Point(ws-e, size-ws)),
+        # Top right corner
+        Wall(Point(size - ws, size-ws), Point(size, size-ws)),
+        Wall(Point(size-ws, size), Point(size-ws-e, size-ws)),
+    ]
+
+    pedestrians = [
+        Pedestrian(np.array([0.0, 10.0]), np.array([10.0, 0.0])),
+    ]
+
+    run_simulation(pedestrians, walls, 0.1)
 
 wall_test()
 pedestrians_test()
+hallway_test()
+crossing_test()
