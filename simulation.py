@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.path import Path
 import matplotlib.patches as mpatches
+import itertools
 
 
 # time within which pedestrian should reach his preferred speed
@@ -258,7 +259,7 @@ class Pedestrian:
         return np.linalg.norm(self.goal - self.pos) < 0.1
 
 
-def run_simulation(pedestrians, walls, dt):
+def run_simulation(pedestrians, walls, dt, save_path=None):
     # move pedestrains
     t = 0
     history = []
@@ -288,7 +289,11 @@ def run_simulation(pedestrians, walls, dt):
         xs = [epoch[0][i] for epoch in history]
         ys = [epoch[1][i] for epoch in history]
         plt.plot(xs, ys)
-    plt.show()
+    if save_path:
+        plt.savefig(save_path)
+        plt.clf()
+    else:
+        plt.show()
 
 class LiveSimulation(object):
     def __init__(self, pedestrians, walls,
@@ -392,21 +397,19 @@ def pedestrians_test():
     sim = LiveSimulation(pedestrians, [], 0.1)
     sim.run()
 
-def hallway_test():
+def hallway_test(size=25, passage_width=10, save_path=None, **params):
     pedestrians = [
-        Pedestrian(np.array([0.0, 5.0]), np.array([25.0, 5.0]), max_speed=10),
-        Pedestrian(np.array([25.0, 6.0]), np.array([0.0, 4.0])),
-        Pedestrian(np.array([25.0, 4.0]), np.array([0.0, 8.0]))
+        Pedestrian(np.array([0.0, 5.0]), np.array([25.0, 5.0]), **params),
+        Pedestrian(np.array([25.0, 6.0]), np.array([0.0, 4.0]), **params),
+        Pedestrian(np.array([25.0, 4.0]), np.array([0.0, 8.0]), **params)
     ]
 
     walls = [
-        Wall(Point(0, 0), Point(25, 0)),
-        Wall(Point(0, 10), Point(25, 10))
+        Wall(Point(0, 0), Point(size, 0)),
+        Wall(Point(0, passage_width), Point(size, passage_width))
     ]
 
-    sim = LiveSimulation(pedestrians, walls, 0.1)
-    sim.run()
-    run_simulation(pedestrians, walls, 0.1)
+    run_simulation(pedestrians, walls, 0.1, save_path=save_path)
 
 def crossing_test(size=20, passage_width=5):
 
@@ -433,7 +436,70 @@ def crossing_test(size=20, passage_width=5):
 
     run_simulation(pedestrians, walls, 0.1)
 
+class Param(object):
+    def __init__(self, random_len=5, **params):
+        """
+        param values:
+            list - predefined param list
+            tuple
+                (min_value, max_value) - will create a random list of size random_len
+                (min_value, max_value, step) - values passed to np.arange
+            other - will be passed as a single value list
+        """
+        self.params = params
+        self.rlen = random_len
+        self.generator = None
+
+    def param_generator(self):
+        self.expanded_params = {}
+        for k, v in self.params.items():
+            if isinstance(v, list):
+                self.expanded_params[k] = v
+            elif isinstance(v, tuple):
+                if len(v) == 2:
+                    self.expanded_params[k] = np.random.uniform(v[0], v[1], self.rlen).tolist()
+                elif len(v) == 3:
+                    self.expanded_params[k] = np.arange(*v)
+                else:
+                    raise RuntimeError("Dont know what to do with that many parameters in tuple")
+            else:
+                self.expanded_params[k] = [v]
+        for product in itertools.product(*self.expanded_params.values()):
+            yield dict(zip(self.expanded_params.keys(), product))
+
+class RandomPoint(object):
+    def __init__(self, x1, y1, x2, y2):
+        self.p1 = np.array([x1, y1])
+        self.p2 = np.array([x2, y2])
+
+    def get_point(self):
+        return np.random.random(2) * (self.p2 - self.p1) + self.p1
+
+def param_space_test(test_fn, paramobj, save_path_prefix=""):
+    for params in paramobj.param_generator():
+        name="{}/{}.png".format(save_path_prefix, '-'.join(["{}:{}".format(k,v) for k, v in params.items()]))
+        test_fn(save_path=name, **params)
+
+param_space_test(
+    hallway_test,
+    Param(
+        pref_speed=(1, 3, 0.5),
+        max_speed=(4, 7, 1),
+        safe_dist=(1, 3, 0.5),
+        psychological_dist=(1.5, 3.5, 0.5),
+        anticipation_time=1,
+        pedestrians_to_avoid=3,
+        avoidance_min=1,
+        avoidance_mid=5,
+        avoidance_max=8,
+        avoidance_magnitude=1,
+        #size=30,
+        #passage_width=(5, 12, 3)
+    ),
+    save_path_prefix="param_space"
+)
+
 #wall_test()
-pedestrians_test()
-hallway_test()
-crossing_test()
+#pedestrians_test()
+#hallway_test()
+#crossing_test()
