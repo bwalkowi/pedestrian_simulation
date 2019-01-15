@@ -312,7 +312,7 @@ class LiveSimulation(object):
     def __init__(self, pedestrians, walls,
                  dt=0.1, max_t=10,
                  ylim=(-1, 30), xlim=(-1, 30),
-                 psychological_dist_vis=True, path_vis=True):
+                 psychological_dist_vis=True, path_vis=False):
         self.pedestrians = pedestrians
         self.walls = walls
         self.dt = dt
@@ -332,7 +332,10 @@ class LiveSimulation(object):
     def step(self):
         forces = []
         for p in self.pedestrians:
-            forces.append(p.calc_force(self.walls, self.pedestrians, self.dt))
+            if not p.has_arrived():
+                forces.append(p.calc_force(self.walls, self.pedestrians, self.dt))
+            else:
+                forces.append(0)
         for p, force in zip(self.pedestrians, forces):
             p.move(force, self.dt)
         self.t += self.dt
@@ -366,7 +369,7 @@ class LiveSimulation(object):
                 c = mpatches.Circle(p.pos, radius=p.psychological_dist+p.r, edgecolor='r', fill=False)
                 self.ax.add_patch(c)
                 self.dynamic_patches.append(c)
-                
+
         # Draw walls
         for wall in self.walls:
             path_data = [
@@ -435,6 +438,28 @@ def hallway_test(size=25, passage_width=10, save_path=None, **params):
 
     run_simulation(pedestrians, walls, 0.1, save_path=save_path)
 
+def hallway_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spawn_width=5):
+    point_group_1 = RandomPoint(0., 0., spawn_width, passage_width)
+    point_group_2 = RandomPoint(size-spawn_width, 0., size, passage_width)
+    groups = [point_group_1, point_group_2]
+
+    pedestrians = []
+    for params in paramobj.random_param_list(pedestrian_num):
+        random.shuffle(groups)
+        p = Pedestrian(groups[0].get_point(), groups[1].get_point(), **params)
+        pedestrians.append(p)
+
+    walls = [
+        Wall(Point(0, 0), Point(size, 0)),
+        Wall(Point(0, passage_width), Point(size, passage_width))
+    ]
+
+    sim = LiveSimulation(pedestrians, walls, 0.1, xlim=(-1, size+1), ylim=(-1, passage_width+1))
+    sim.run()
+
+    run_simulation(pedestrians, walls, 0.1)
+
+
 
 def crossing_test(size=20, passage_width=5):
 
@@ -459,6 +484,8 @@ def crossing_test(size=20, passage_width=5):
         Pedestrian(np.array([0.0, 10.0]), np.array([10.0, 0.0])),
     ]
 
+    sim = LiveSimulation(pedestrians, [], 0.1)
+    sim.run()
     run_simulation(pedestrians, walls, 0.1)
 
 
@@ -476,22 +503,40 @@ class Param:
         self.rlen = random_len
         self.generator = None
 
-    def param_generator(self):
-        self.expanded_params = {}
+    def expand_params(self):
+        expanded_params = {}
         for k, v in self.params.items():
             if isinstance(v, list):
-                self.expanded_params[k] = v
+                expanded_params[k] = v
             elif isinstance(v, tuple):
                 if len(v) == 2:
-                    self.expanded_params[k] = np.random.uniform(v[0], v[1], self.rlen).tolist()
+                    expanded_params[k] = np.random.uniform(v[0], v[1], self.rlen).tolist()
                 elif len(v) == 3:
-                    self.expanded_params[k] = np.arange(*v)
+                    expanded_params[k] = np.arange(*v)
                 else:
                     raise RuntimeError("Dont know what to do with that many parameters in tuple")
             else:
-                self.expanded_params[k] = [v]
+                expanded_params[k] = [v]
+        return expanded_params
+
+    def param_space_generator(self):
+        expanded_params = self.expand_params()
         for product in itertools.product(*self.expanded_params.values()):
             yield dict(zip(self.expanded_params.keys(), product))
+
+    def random_param_list(self, n):
+        expanded_params = {}
+        for k, v in self.params.items():
+            if isinstance(v, list):
+                raise RuntimeError("List not supported for random params")
+            elif isinstance(v, tuple):
+                if len(v) == 2:
+                    expanded_params[k] = np.random.uniform(v[0], v[1], n).tolist()
+                else:
+                    raise RuntimeError("Dont know what to do with that many parameters in tuple")
+            else:
+                expanded_params[k] = [v]*n
+        return [dict(zip(expanded_params.keys(), l)) for l in zip(*expanded_params.values())]
 
 
 class RandomPoint:
@@ -504,10 +549,28 @@ class RandomPoint:
 
 
 def param_space_test(test_fn, paramobj, save_path_prefix=""):
-    for params in paramobj.param_generator():
+    for params in paramobj.param_space_generator():
         name = "{}/{}.png".format(save_path_prefix, '-'.join(["{}:{}".format(k, v)
                                                               for k, v in params.items()]))
         test_fn(save_path=name, **params)
+
+
+hallway_random_test(
+        Param( random_len=4,
+            r=(0.4, 0.6),
+            pref_speed=(0.5, 1.5),
+            max_speed=2.5,
+            safe_dist=(0.5, 1.0),
+            psychological_dist=(0.3, 2),
+            anticipation_time=(4, 8),
+            pedestrians_to_avoid=3,
+            avoidance_min=0.5,
+            avoidance_mid=5,
+            avoidance_max=8,
+            avoidance_magnitude=0.8,
+        ),
+        pedestrian_num=10
+    )
 
 # param_space_test(
 #     hallway_test,
