@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import random
 from collections import namedtuple
 
 import numpy as np
@@ -111,7 +112,6 @@ class Pedestrian:
         self.pedestrians_to_avoid = pedestrians_to_avoid
 
     def move(self, force, dt):
-        # TODO use integration
         self.v = self._limit_velocity(self.v + force * dt)
         self.pos += self.v * dt
 
@@ -120,7 +120,9 @@ class Pedestrian:
         repulsive_force = self.calc_repulsive_force(walls)
         evasive_force = self.calc_evasive_force(pedestrians, goal_force,
                                                 repulsive_force, dt)
-        return goal_force + repulsive_force + evasive_force
+        force = goal_force + repulsive_force + evasive_force
+
+        return force + self.calc_variation_force(force)
 
     def calc_goal_force(self):
         norm_vec = self.goal - self.pos
@@ -145,7 +147,16 @@ class Pedestrian:
         v_des = self._limit_velocity(v_des)
 
         return self._calc_evasive_force_1(v_des, pedestrians)
-        #return self._calc_evasive_force_2(v_des, pedestrians, dt)
+        # return self._calc_evasive_force_2(v_des, pedestrians, dt)
+
+    def calc_variation_force(self, force):
+        angle = np.radians(random.randint(1, 360))
+        x0, y0 = force / 20
+
+        x1 = np.cos(angle) * x0 + np.sin(angle) * y0
+        y1 = np.sin(angle) * x0 + np.cos(angle) * y0
+
+        return np.array([x1, y1])
 
     def _calc_evasive_force_1(self, v_des, pedestrians):
         force = np.zeros(self.v.shape)
@@ -259,7 +270,7 @@ class Pedestrian:
 
 
 def run_simulation(pedestrians, walls, dt):
-    # move pedestrains
+    # move pedestrians
     t = 0
     history = []
     while not all([p.has_arrived() for p in pedestrians]) and t < 500:
@@ -290,11 +301,12 @@ def run_simulation(pedestrians, walls, dt):
         plt.plot(xs, ys)
     plt.show()
 
+
 class LiveSimulation(object):
     def __init__(self, pedestrians, walls,
-            dt=0.1, max_t=10,
-            ylim=(-1, 30), xlim=(-1, 30),
-            psychological_dist_vis=True, path_vis=True):
+                 dt=0.1, max_t=10,
+                 ylim=(-1, 30), xlim=(-1, 30),
+                 psychological_dist_vis=True, path_vis=True):
         self.pedestrians = pedestrians
         self.walls = walls
         self.dt = dt
@@ -320,7 +332,7 @@ class LiveSimulation(object):
             p.move(force, self.dt)
         self.t += self.dt
 
-    def animate(self, i):
+    def animate(self, _frame):
         self.step()
         self.pedestrian_data.set_data(
                 [p.pos[0] for p in self.pedestrians],
@@ -364,7 +376,6 @@ class LiveSimulation(object):
         for p in self.pedestrians:
             self.pedestrian_path_data.append({"codes": [Path.MOVETO], "vertices": [p.pos]})
 
-
         anim = FuncAnimation(self.fig, self.animate, interval=100, frames=int(self.max_t//self.dt))
         plt.draw()
         plt.show()
@@ -388,9 +399,22 @@ def pedestrians_test():
         Pedestrian(np.array([25.0, 0.0]), np.array([0.0, 20.0]))
     ]
 
-    #run_simulation(pedestrians, [], 0.1)
+    # run_simulation(pedestrians, [], 0.1)
     sim = LiveSimulation(pedestrians, [], 0.1)
     sim.run()
+
+
+def symmetric_pedestrians_test():
+    pedestrians = [
+        Pedestrian(np.array([0.0, 0.0]), np.array([20.0, 20.0])),
+        Pedestrian(np.array([20.0, 0.0]), np.array([0.0, 20.0]))
+    ]
+
+    # run_simulation(pedestrians, [], 0.1)
+    sim = LiveSimulation(pedestrians, [], 0.1)
+    sim.run()
+    run_simulation(pedestrians, [], 0.1)
+
 
 def hallway_test():
     pedestrians = [
@@ -408,11 +432,12 @@ def hallway_test():
     sim.run()
     run_simulation(pedestrians, walls, 0.1)
 
+
 def crossing_test(size=20, passage_width=5):
 
-    ws = (size-passage_width)/2 # wall size
-    e = 0.00001 # Fix for ZeroDivisionError
-    walls= [
+    ws = (size-passage_width)/2  # wall size
+    e = 0.00001  # Fix for ZeroDivisionError
+    walls = [
         # Bottom left corner
         Wall(Point(0, ws), Point(ws, ws)),
         Wall(Point(ws, 0), Point(ws-e, ws)),
@@ -433,7 +458,9 @@ def crossing_test(size=20, passage_width=5):
 
     run_simulation(pedestrians, walls, 0.1)
 
-#wall_test()
-pedestrians_test()
-hallway_test()
-crossing_test()
+
+# wall_test()
+# pedestrians_test()
+symmetric_pedestrians_test()
+# hallway_test()
+# crossing_test()
