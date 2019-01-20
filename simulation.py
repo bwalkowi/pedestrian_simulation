@@ -413,8 +413,9 @@ class Simulation(object):
             plt.plot(xs, ys)
 
         for p in self.pedestrians:
-            xs, ys = zip(*p.history)
-            plt.plot(xs, ys)
+            if p.history:
+                xs, ys = zip(*p.history)
+                plt.plot(xs, ys)
         if save_path:
             plt.savefig(save_path)
             plt.clf()
@@ -582,19 +583,20 @@ def param_space_test(test_fn, paramobj, save_path_prefix=""):
 
 hallway_random_test(
         Param(
-            r=(0.4, 0.6),
+            r=(0.2, 0.3),
             pref_speed=(0.5, 1.5),
             max_speed=2.5,
             safe_dist=(0.5, 1.0),
-            psychological_dist=(0.3, 2),
+            psychological_dist=(0.45, 1.20),
             anticipation_time=(4, 8),
-            pedestrians_to_avoid=3,
+            pedestrians_to_avoid=5,
             avoidance_min=0.5,
             avoidance_mid=5,
             avoidance_max=8,
             avoidance_magnitude=0.8,
         ),
-        pedestrian_num=20,
+        size=100,
+        pedestrian_num=40,
         pedestrian_addition=10
     )
 
@@ -620,7 +622,7 @@ hallway_random_test(
 
 # wall_test()
 pedestrians_test(
-        r=0.5,
+        r=0.3,
         pref_speed=1.0,
         max_speed=2.5,
         safe_dist=0.8,
