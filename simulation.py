@@ -511,7 +511,45 @@ def crossing_test(size=20, passage_width=5):
         Pedestrian(np.array([0.0, 10.0]), np.array([10.0, 0.0])),
     ]
 
-    sim = Simulation(pedestrians, [], 0.1)
+    sim = Simulation(pedestrians, walls, 0.1)
+    sim.live_run()
+    sim.run_and_draw()
+
+def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spawn_width=5, pedestrian_addition=0):
+    ws = (size-passage_width)/2  # wall size
+    e = 0.00001  # Fix for ZeroDivisionError
+
+    point_group_1 = RandomPoint(0., ws+1, spawn_width, ws + passage_width - 1)
+    point_group_2 = RandomPoint(size-spawn_width, ws+1, size, ws + passage_width - 1)
+    point_group_3 = RandomPoint(ws+1, 0., ws + passage_width -1 , spawn_width)
+    point_group_4 = RandomPoint(ws+1, size - spawn_width, ws + passage_width -1 , size)
+
+
+    groups = [point_group_1, point_group_2, point_group_3, point_group_4]
+
+    pedestrians = []
+    for params in paramobj.random_param_list(pedestrian_num):
+        random.shuffle(groups)
+        p = Pedestrian(groups[0].get_point(), groups[1].get_point(), **params)
+        pedestrians.append(p)
+
+
+    walls = [
+        # Bottom left corner
+        Wall(Point(0, ws), Point(ws, ws)),
+        Wall(Point(ws, 0), Point(ws-e, ws)),
+        # Bottom right corner
+        Wall(Point(size - ws, ws), Point(size, ws)),
+        Wall(Point(size - ws, 0), Point(size-ws-e, ws)),
+        # Top left corner
+        Wall(Point(0, size-ws), Point(ws, size-ws)),
+        Wall(Point(ws, size), Point(ws-e, size-ws)),
+        # Top right corner
+        Wall(Point(size - ws, size-ws), Point(size, size-ws)),
+        Wall(Point(size-ws, size), Point(size-ws-e, size-ws)),
+    ]
+
+    sim = Simulation(pedestrians, walls, 0.1, xlim=(-1, size+1), ylim=(-1, size+1), pedestrian_addition=pedestrian_addition)
     sim.live_run()
     sim.run_and_draw()
 
@@ -582,6 +620,7 @@ def param_space_test(test_fn, paramobj, save_path_prefix=""):
         test_fn(save_path=name, **params)
 
 hallway_random_test(
+#crossing_random_test(
         Param(
             r=(0.2, 0.3),
             pref_speed=(0.5, 1.5),
@@ -596,6 +635,7 @@ hallway_random_test(
             avoidance_magnitude=0.8,
         ),
         size=100,
+        passage_width=10,
         pedestrian_num=40,
         pedestrian_addition=10
     )
