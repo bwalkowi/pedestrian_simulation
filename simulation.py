@@ -318,6 +318,7 @@ class Simulation(object):
         self.pedestrian_addition = pedestrian_addition
 
         # Plot
+        self.xlim, self.ylim = xlim, ylim
         self.fig = plt.figure()
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         self.ax = self.fig.add_subplot(111, xlim=xlim, ylim=ylim)
@@ -416,6 +417,8 @@ class Simulation(object):
             if p.history:
                 xs, ys = zip(*p.history)
                 plt.plot(xs, ys)
+        plt.xlim(self.xlim)
+        plt.ylim(self.ylim)
         if save_path:
             plt.savefig(save_path)
             plt.clf()
@@ -456,9 +459,14 @@ def symmetric_pedestrians_test():
 
 def hallway_test(size=25, passage_width=10, save_path=None, **params):
     pedestrians = [
-        Pedestrian(np.array([0.0, 5.0]), np.array([25.0, 5.0]), **params),
-        Pedestrian(np.array([26.0, 8.0]), np.array([0.0, 2.0]), **params),
-        Pedestrian(np.array([25.0, 4.0]), np.array([0.0, 8.0]), **params)
+        Pedestrian(np.array([0.0, 5.0]), np.array([29.0, 5.0]), **params),
+        Pedestrian(np.array([1.0, 2.0]), np.array([25.0, 9.0]), **params),
+        Pedestrian(np.array([1.0, 6.0]), np.array([28.0, 1.0]), **params),
+        Pedestrian(np.array([0.0, 8.0]), np.array([27.0, 3.0]), **params),
+        Pedestrian(np.array([26.0, 2.0]), np.array([-1.0, 2.0]), **params),
+        Pedestrian(np.array([25.0, 4.0]), np.array([-2.0, 8.0]), **params),
+        Pedestrian(np.array([26.0, 6.0]), np.array([0.0, 4.0]), **params),
+        Pedestrian(np.array([24.0, 8.0]), np.array([-2.0, 3.0]), **params),
     ]
 
     walls = [
@@ -466,7 +474,10 @@ def hallway_test(size=25, passage_width=10, save_path=None, **params):
         Wall(Point(0, passage_width), Point(size, passage_width))
     ]
 
-    Simulation(pedestrians, walls, 0.1).run_and_draw()
+    sim = Simulation(pedestrians, walls, 0.1, xlim=(0, size), ylim=(-1,passage_width+1))
+    sim.live_run()
+    sim.run_and_draw()
+    
 
 def hallway_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spawn_width=5, pedestrian_addition=0):
     point_group_1 = RandomPoint(0., 1., spawn_width, passage_width - 1)
@@ -525,12 +536,13 @@ def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10, sp
     point_group_4 = RandomPoint(ws+1, size - spawn_width, ws + passage_width -1 , size)
 
 
-    groups = [point_group_1, point_group_2, point_group_3, point_group_4]
+    groups = [[point_group_1, point_group_2], [point_group_3, point_group_4]]
 
     pedestrians = []
     for params in paramobj.random_param_list(pedestrian_num):
         random.shuffle(groups)
-        p = Pedestrian(groups[0].get_point(), groups[1].get_point(), **params)
+        random.shuffle(groups[0])
+        p = Pedestrian(groups[0][0].get_point(), groups[0][1].get_point(), **params)
         pedestrians.append(p)
 
 
@@ -618,9 +630,23 @@ def param_space_test(test_fn, paramobj, save_path_prefix=""):
         name = "{}/{}.png".format(save_path_prefix, '-'.join(["{}:{}".format(k, v)
                                                               for k, v in params.items()]))
         test_fn(save_path=name, **params)
-
-hallway_random_test(
-#crossing_random_test(
+#
+#hallway_test(
+#        r=0.3,
+#        pref_speed=1.0,
+#        max_speed=2.5,
+#        safe_dist=0.8,
+#        psychological_dist=1.2,
+#        anticipation_time=4,
+#        pedestrians_to_avoid=3,
+#        avoidance_min=0.5,
+#        avoidance_mid=5,
+#        avoidance_max=8,
+#        avoidance_magnitude=0.8,
+#)
+#
+#hallway_random_test(
+crossing_random_test(
         Param(
             r=(0.2, 0.3),
             pref_speed=(0.5, 1.5),
@@ -634,10 +660,10 @@ hallway_random_test(
             avoidance_max=8,
             avoidance_magnitude=0.8,
         ),
-        size=100,
+        size=40,
         passage_width=10,
         pedestrian_num=40,
-        pedestrian_addition=10
+        pedestrian_addition=6
     )
 
 # param_space_test(
