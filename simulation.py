@@ -304,6 +304,7 @@ class Simulation:
             self.active_pedestrians = pedestrians[:]
 
         self.pedestrian_patches = {}
+        self.traces_patches = {}
         self.psychological_patches = {}
 
     def _step(self):
@@ -332,12 +333,21 @@ class Simulation:
             p.move(force, self.dt)
             p.history.append(tuple(p.pos))
 
+            trace = self.traces_patches[id(p)]
+            trace.set_xy(p.history)
+
         self.t += self.dt
 
     def _add_pedestrian(self, p):
         c = mpatches.Circle(p.pos, radius=p.r, color='k', fill=True)
         self.ax.add_patch(c)
         self.pedestrian_patches[id(p)] = c
+
+        t = mpatches.Polygon([tuple(p.pos)],
+                             closed=False, fill=False,
+                             color=np.random.rand(3,))
+        self.ax.add_patch(t)
+        self.traces_patches[id(p)] = t
 
         if self.show_psychological_dist:
             c = mpatches.Circle(p.pos, radius=p.psychological_dist + p.r,
@@ -347,6 +357,7 @@ class Simulation:
 
     def _remove_pedestrian(self, p):
         self.pedestrian_patches[id(p)].remove()
+        # self.traces_patches[id(p)].remove()
         if self.show_psychological_dist:
             self.psychological_patches[id(p)].remove()
 
@@ -440,7 +451,7 @@ def symmetric_pedestrians_test():
     sim.run_and_draw()
 
 
-def hallway_test(size=25, passage_width=10, _save_path=None, **params):
+def hallway_test(size=25, passage_width=10, save_path=None, **params):
     pedestrians = [
         Pedestrian(np.array([0.0, 5.0]), np.array([29.0, 5.0]), **params),
         Pedestrian(np.array([1.0, 2.0]), np.array([25.0, 9.0]), **params),
@@ -588,8 +599,8 @@ class Param:
 
     def param_space_generator(self):
         expanded_params = self.expand_params()
-        for product in itertools.product(*self.expanded_params.values()):
-            yield dict(zip(self.expanded_params.keys(), product))
+        for product in itertools.product(*expanded_params.values()):
+            yield dict(zip(expanded_params.keys(), product))
 
     def random_param_list(self, n):
         expanded_params = {}
@@ -673,8 +684,8 @@ crossing_random_test(
 #         avoidance_mid=5,
 #         avoidance_max=8,
 #         avoidance_magnitude=(0.5, 1.2, 0.3),
-#         #size=30,
-#         #passage_width=(5, 12, 3)
+#         # size=30,
+#         # passage_width=(5, 12, 3)
 #     ),
 #     save_path_prefix="param_space"
 # )
