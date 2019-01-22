@@ -272,83 +272,57 @@ class Pedestrian:
         return np.linalg.norm(self.goal - self.pos) < 0.1
 
 
-def run_simulation(pedestrians, walls, dt, stop_if_arrived=True, save_path=None, max_t=1000):
-    # move pedestrians
-    t = 0
-    while not all([p.has_arrived() for p in pedestrians]) and t < max_t:
-        forces = []
-        for p in pedestrians:
-            forces.append(p.calc_force(walls, pedestrians, dt))
-        for p, force in zip(pedestrians, forces):
-            if not p.has_arrived() and stop_if_arrived:
-                p.move(force, dt)
-            p.history.append(tuple(p.pos))
-        t += 1
-
-    # static plot
-    for wall in walls:
-        xs = [wall.p1.x, wall.p2.x]
-        ys = [wall.p1.y, wall.p2.y]
-        plt.plot(xs, ys)
-
-    for p in pedestrians:
-        xs, ys = zip(*p.history)
-        plt.plot(xs, ys)
-    if save_path:
-        plt.savefig(save_path)
-        plt.clf()
-    else:
-        plt.show()
-
-
-class Simulation(object):
+class Simulation:
     def __init__(self, pedestrians, walls,
-                 dt=0.1, max_t=100,
-                 ylim=(-1, 30), xlim=(-1, 30),
-                 psychological_dist_vis=True, arival_removal=True,
+                 dt=0.1, max_t=100, *,
+                 y_lim=(-1, 30), x_lim=(-1, 30),
+                 show_psychological_dist=True, rm_agent_on_arrival=True,
                  pedestrian_addition=0):
+
         self.pedestrians = pedestrians
         self.walls = walls
         self.dt = dt
         self.max_t = max_t
         self.t = 0
 
-        self.psychological_dist_vis = psychological_dist_vis
-        self.arival_removal = arival_removal
+        self.show_psychological_dist = show_psychological_dist
+        self.rm_agent_on_arrival = rm_agent_on_arrival
         self.pedestrian_addition = pedestrian_addition
 
         # Plot
-        self.xlim, self.ylim = xlim, ylim
+        self.x_lim, self.y_lim = x_lim, y_lim
         self.fig = plt.figure()
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-        self.ax = self.fig.add_subplot(111, xlim=xlim, ylim=ylim)
-        self.wall_data, = self.ax.plot([], [], 'k-')
+        self.ax = self.fig.add_subplot(111, xlim=x_lim, ylim=y_lim)
+        self.wall_data = self.ax.plot([], [], 'k-')
 
         if pedestrian_addition:
             self.active_pedestrians = pedestrians[:2]
             self.last_added = 0
-            self.used_pedestrians = set([id(p) for p in self.active_pedestrians])
+            self.used_pedestrians = set(id(p) for p in self.active_pedestrians)
         else:
             self.active_pedestrians = pedestrians[:]
 
         self.pedestrian_patches = {}
         self.psychological_patches = {}
 
-    def step(self):
-        forces = []
-        if self.arival_removal:
+    def _step(self):
+        if self.rm_agent_on_arrival:
             for p in self.active_pedestrians:
                 if p.has_arrived():
                     self.active_pedestrians.remove(p)
+                    self._remove_pedestrian(p)
+
         if self.pedestrian_addition and self.t - self.last_added > self.pedestrian_addition:
             for p in self.pedestrians:
                 if id(p) not in self.used_pedestrians:
                     self.active_pedestrians.append(p)
                     self.used_pedestrians.add(id(p))
-                    self.add_pedestrian(p)
+                    self._add_pedestrian(p)
                     self.last_added = self.t
                     break
 
+        forces = []
         for p in self.active_pedestrians:
             if not p.has_arrived():
                 forces.append(p.calc_force(self.walls, self.active_pedestrians, self.dt))
@@ -357,32 +331,31 @@ class Simulation(object):
         for p, force in zip(self.active_pedestrians, forces):
             p.move(force, self.dt)
             p.history.append(tuple(p.pos))
+
         self.t += self.dt
 
-    def add_pedestrian(self, p):
+    def _add_pedestrian(self, p):
         c = mpatches.Circle(p.pos, radius=p.r, color='k', fill=True)
         self.ax.add_patch(c)
         self.pedestrian_patches[id(p)] = c
 
-        if self.psychological_dist_vis:
-            c = mpatches.Circle(p.pos, radius=p.psychological_dist+p.r, edgecolor='r', fill=False)
+        if self.show_psychological_dist:
+            c = mpatches.Circle(p.pos, radius=p.psychological_dist + p.r,
+                                edgecolor='r', fill=False)
             self.ax.add_patch(c)
             self.psychological_patches[id(p)] = c
 
-    def remove_pedestrian(self, p):
+    def _remove_pedestrian(self, p):
         self.pedestrian_patches[id(p)].remove()
-        if self.psychological_dist_vis:
+        if self.show_psychological_dist:
             self.psychological_patches[id(p)].remove()
 
-    def animate(self, _frame):
-        self.step()
-        for p in self.active_pedestrians:
-            if p.has_arrived() and self.arival_removal:
-                self.remove_pedestrian(p)
+    def _animate(self, _frame):
+        self._step()
 
     def run(self):
         while self.t < self.max_t:
-            self.step()
+            self._step()
 
     def run_and_draw(self):
         self.run()
@@ -390,40 +363,46 @@ class Simulation(object):
 
     def live_run(self):
         for p in self.active_pedestrians:
-            self.add_pedestrian(p)
+            self._add_pedestrian(p)
 
         # Draw walls
         for wall in self.walls:
             path_data = [
-                    (Path.MOVETO, wall.p1),
-                    (Path.LINETO, wall.p2)
-                    ]
+                (Path.MOVETO, wall.p1),
+                (Path.LINETO, wall.p2)
+            ]
             cod, vert = zip(*path_data)
             path = Path(vert, cod)
-            patch = mpatches.PathPatch(path)
+            patch = mpatches.PathPatch(path, color='brown', linewidth=3)
             self.ax.add_patch(patch)
 
-        anim = FuncAnimation(self.fig, self.animate, interval=30, frames=int(self.max_t//self.dt))
+        _anim = FuncAnimation(self.fig, self._animate, interval=30,
+                              frames=int(self.max_t / self.dt))
         plt.draw()
         plt.show()
 
     def draw(self, save_path=None):
+        # Draw walls
         for wall in self.walls:
             xs = [wall.p1.x, wall.p2.x]
             ys = [wall.p1.y, wall.p2.y]
-            plt.plot(xs, ys)
+            plt.plot(xs, ys, color='brown', linewidth=3)
 
+        # Draw traces of pedestrians
         for p in self.pedestrians:
             if p.history:
                 xs, ys = zip(*p.history)
                 plt.plot(xs, ys)
-        plt.xlim(self.xlim)
-        plt.ylim(self.ylim)
+
+        plt.xlim(self.x_lim)
+        plt.ylim(self.y_lim)
+
         if save_path:
             plt.savefig(save_path)
             plt.clf()
         else:
             plt.show()
+
 
 def wall_test():
     pedestrians = [
@@ -434,7 +413,9 @@ def wall_test():
         Wall(Point(0, 10), Point(20, 10))
     ]
 
-    Simulation(pedestrians, walls, 0.1).run_and_draw()
+    sim = Simulation(pedestrians, walls, 0.1)
+    sim.live_run()
+    sim.run_and_draw()
 
 
 def pedestrians_test(**params):
@@ -445,6 +426,7 @@ def pedestrians_test(**params):
 
     sim = Simulation(pedestrians, [], 0.1)
     sim.live_run()
+    sim.run_and_draw()
 
 
 def symmetric_pedestrians_test():
@@ -457,7 +439,8 @@ def symmetric_pedestrians_test():
     sim.live_run()
     sim.run_and_draw()
 
-def hallway_test(size=25, passage_width=10, save_path=None, **params):
+
+def hallway_test(size=25, passage_width=10, _save_path=None, **params):
     pedestrians = [
         Pedestrian(np.array([0.0, 5.0]), np.array([29.0, 5.0]), **params),
         Pedestrian(np.array([1.0, 2.0]), np.array([25.0, 9.0]), **params),
@@ -474,12 +457,14 @@ def hallway_test(size=25, passage_width=10, save_path=None, **params):
         Wall(Point(0, passage_width), Point(size, passage_width))
     ]
 
-    sim = Simulation(pedestrians, walls, 0.1, xlim=(0, size), ylim=(-1,passage_width+1))
+    sim = Simulation(pedestrians, walls, 0.1,
+                     x_lim=(0, size), y_lim=(-1, passage_width + 1))
     sim.live_run()
     sim.run_and_draw()
-    
 
-def hallway_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spawn_width=5, pedestrian_addition=0):
+
+def hallway_random_test(paramobj, pedestrian_num, size=40, passage_width=10,
+                        spawn_width=5, pedestrian_addition=0):
     point_group_1 = RandomPoint(0., 1., spawn_width, passage_width - 1)
     point_group_2 = RandomPoint(size-spawn_width, 1., size, passage_width - 1)
     groups = [point_group_1, point_group_2]
@@ -495,9 +480,12 @@ def hallway_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spa
         Wall(Point(0, passage_width), Point(size, passage_width))
     ]
 
-    sim = Simulation(pedestrians, walls, 0.1, xlim=(-1, size+1), ylim=(-1, passage_width+1), pedestrian_addition=pedestrian_addition)
+    sim = Simulation(pedestrians, walls, 0.1,
+                     x_lim=(-1, size + 1), y_lim=(-1, passage_width + 1),
+                     pedestrian_addition=pedestrian_addition)
     sim.live_run()
     sim.run_and_draw()
+
 
 def crossing_test(size=20, passage_width=5):
 
@@ -526,15 +514,16 @@ def crossing_test(size=20, passage_width=5):
     sim.live_run()
     sim.run_and_draw()
 
-def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10, spawn_width=5, pedestrian_addition=0):
+
+def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10,
+                         spawn_width=5, pedestrian_addition=0):
     ws = (size-passage_width)/2  # wall size
     e = 0.00001  # Fix for ZeroDivisionError
 
     point_group_1 = RandomPoint(0., ws+1, spawn_width, ws + passage_width - 1)
     point_group_2 = RandomPoint(size-spawn_width, ws+1, size, ws + passage_width - 1)
-    point_group_3 = RandomPoint(ws+1, 0., ws + passage_width -1 , spawn_width)
-    point_group_4 = RandomPoint(ws+1, size - spawn_width, ws + passage_width -1 , size)
-
+    point_group_3 = RandomPoint(ws+1, 0., ws + passage_width - 1, spawn_width)
+    point_group_4 = RandomPoint(ws+1, size - spawn_width, ws + passage_width - 1, size)
 
     groups = [[point_group_1, point_group_2], [point_group_3, point_group_4]]
 
@@ -544,7 +533,6 @@ def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10, sp
         random.shuffle(groups[0])
         p = Pedestrian(groups[0][0].get_point(), groups[0][1].get_point(), **params)
         pedestrians.append(p)
-
 
     walls = [
         # Bottom left corner
@@ -561,7 +549,9 @@ def crossing_random_test(paramobj, pedestrian_num, size=40, passage_width=10, sp
         Wall(Point(size-ws, size), Point(size-ws-e, size-ws)),
     ]
 
-    sim = Simulation(pedestrians, walls, 0.1, xlim=(-1, size+1), ylim=(-1, size+1), pedestrian_addition=pedestrian_addition)
+    sim = Simulation(pedestrians, walls, 0.1,
+                     x_lim=(-1, size + 1), y_lim=(-1, size + 1),
+                     pedestrian_addition=pedestrian_addition)
     sim.live_run()
     sim.run_and_draw()
 
@@ -630,8 +620,9 @@ def param_space_test(test_fn, paramobj, save_path_prefix=""):
         name = "{}/{}.png".format(save_path_prefix, '-'.join(["{}:{}".format(k, v)
                                                               for k, v in params.items()]))
         test_fn(save_path=name, **params)
-#
-#hallway_test(
+
+
+# hallway_test(
 #        r=0.3,
 #        pref_speed=1.0,
 #        max_speed=2.5,
@@ -643,9 +634,11 @@ def param_space_test(test_fn, paramobj, save_path_prefix=""):
 #        avoidance_mid=5,
 #        avoidance_max=8,
 #        avoidance_magnitude=0.8,
-#)
+# )
 #
-#hallway_random_test(
+
+
+# hallway_random_test(
 crossing_random_test(
         Param(
             r=(0.2, 0.3),
@@ -687,19 +680,23 @@ crossing_random_test(
 # )
 
 # wall_test()
-pedestrians_test(
-        r=0.3,
-        pref_speed=1.0,
-        max_speed=2.5,
-        safe_dist=0.8,
-        psychological_dist=1.2,
-        anticipation_time=4,
-        pedestrians_to_avoid=3,
-        avoidance_min=0.5,
-        avoidance_mid=5,
-        avoidance_max=8,
-        avoidance_magnitude=0.8,
-)
-symmetric_pedestrians_test()
+
+# pedestrians_test(
+#         r=0.3,
+#         pref_speed=1.0,
+#         max_speed=2.5,
+#         safe_dist=0.8,
+#         psychological_dist=1.2,
+#         anticipation_time=4,
+#         pedestrians_to_avoid=3,
+#         avoidance_min=0.5,
+#         avoidance_mid=5,
+#         avoidance_max=8,
+#         avoidance_magnitude=0.8,
+# )
+
+# symmetric_pedestrians_test()
+
 # hallway_test()
+
 # crossing_test()
